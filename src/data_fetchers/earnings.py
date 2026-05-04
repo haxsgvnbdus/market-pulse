@@ -13,7 +13,8 @@ Note: Free APIs have limitations. For production, consider:
 import yfinance as yf
 from datetime import datetime
 from typing import List, Dict
-from ..models.metrics import EarningsData, CompanyEarnings
+from ..models.metrics import EarningsData, CompanyEarnings, QuarterlySnapshot
+from ..thresholds import EARNINGS_HEALTHY_GROWTH_MIN
 
 
 # Representative companies for each sector (large caps)
@@ -33,18 +34,8 @@ SECTOR_REPRESENTATIVES = {
 
 
 def fetch_sector_earnings(sectors: List[str] = None) -> EarningsData:
-    """
-    Fetch earnings data for specified sectors or leading sectors.
-
-    Args:
-        sectors: List of sector names to fetch earnings for.
-                 If None, fetches for top sectors by default.
-
-    Returns:
-        EarningsData with company earnings info.
-    """
     if sectors is None:
-        sectors = ["Technology", "Financials", "Healthcare"]  # Default sectors
+        sectors = list(SECTOR_REPRESENTATIVES.keys())
 
     try:
         all_earnings: List[CompanyEarnings] = []
@@ -57,10 +48,27 @@ def fetch_sector_earnings(sectors: List[str] = None) -> EarningsData:
             tickers = SECTOR_REPRESENTATIVES[sector]
             sector_earnings = []
 
-            for ticker in tickers[:3]:  # Limit to top 3 per sector for speed
+            for ticker in tickers:
                 try:
                     stock = yf.Ticker(ticker)
                     info = stock.info
+
+                    # Quarterly revenue + net income (last 4 quarters)
+                    quarterly_data = []
+                    try:
+                        qstmt = stock.quarterly_income_stmt
+                        if qstmt is not None and not qstmt.empty:
+                            for col in list(qstmt.columns)[:4]:
+                                rev = qstmt.loc["Total Revenue", col] if "Total Revenue" in qstmt.index else None
+                                net = qstmt.loc["Net Income", col] if "Net Income" in qstmt.index else None
+                                import math
+                                quarterly_data.append(QuarterlySnapshot(
+                                    quarter=f"Q{(col.month - 1) // 3 + 1} {col.year}",
+                                    revenue_b=round(float(rev) / 1e9, 2) if rev is not None and not math.isnan(float(rev)) else None,
+                                    net_income_b=round(float(net) / 1e9, 2) if net is not None and not math.isnan(float(net)) else None,
+                                ))
+                    except Exception:
+                        pass
 
                     # Get earnings data
                     earnings = CompanyEarnings(
@@ -76,7 +84,10 @@ def fetch_sector_earnings(sectors: List[str] = None) -> EarningsData:
                         profit_margin=info.get("profitMargins"),
                         analyst_rating=info.get("recommendationKey"),
                         target_price=info.get("targetMeanPrice"),
-                        current_price=info.get("currentPrice")
+                        current_price=info.get("currentPrice") or info.get("regularMarketPrice"),
+                        prev_close=info.get("previousClose") or info.get("regularMarketPreviousClose"),
+                        open_price=info.get("open") or info.get("regularMarketOpen"),
+                        quarterly_data=quarterly_data,
                     )
 
                     sector_earnings.append(earnings)
@@ -106,7 +117,7 @@ def fetch_sector_earnings(sectors: List[str] = None) -> EarningsData:
         # Determine overall health
         healthy_sectors = [
             s for s, data in sector_summaries.items()
-            if data.get("avg_earnings_growth", 0) and data["avg_earnings_growth"] > 5
+            if data.get("avg_earnings_growth", 0) and data["avg_earnings_growth"] > EARNINGS_HEALTHY_GROWTH_MIN
         ]
 
         return EarningsData(

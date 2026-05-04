@@ -52,10 +52,8 @@ def fetch_all_data() -> MarketPulseReport:
     print("  - Sector Performance...")
     sectors = fetch_sector_performance()
 
-    # Fetch earnings for leading sectors
-    leading = sectors.leading_sectors[:3] if sectors.leading_sectors else ["Technology", "Healthcare"]
-    print(f"  - Earnings for: {', '.join(leading)}...")
-    earnings = fetch_sector_earnings(leading)
+    print("  - Earnings for all sectors...")
+    earnings = fetch_sector_earnings()
 
     report = MarketPulseReport(
         vix=vix,

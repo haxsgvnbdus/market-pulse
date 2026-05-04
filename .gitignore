@@ -30,3 +30,4 @@ data/
 
 # Files
 .env.example
+.env

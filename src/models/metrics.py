@@ -6,6 +6,14 @@ Using dataclasses for clean, type-hinted structures.
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from datetime import datetime
+from ..thresholds import (
+    VIX_BUY_SIGNAL,
+    SECTOR_LEADER_GAP,
+    EARNINGS_HEALTHY_SECTORS_MIN,
+    SIGNAL_STRONG_BUY_MIN,
+    SIGNAL_MODERATE_BUY_MIN,
+    SIGNAL_WEAK_BUY_MIN,
+)
 
 
 @dataclass
@@ -13,23 +21,32 @@ class VIXData:
     """VIX (Fear Index) data."""
     current: Optional[float] = None
     previous_close: Optional[float] = None
-    week_ago: Optional[float] = None
+    day_5_ago: Optional[float] = None
+    day_20_ago: Optional[float] = None
+    day_60_ago: Optional[float] = None
+    day_90_ago: Optional[float] = None
+    day_180_ago: Optional[float] = None
+    year_ago: Optional[float] = None
     month_high: Optional[float] = None
     month_low: Optional[float] = None
-    fear_level: str = "unknown"  # extreme_fear, high_fear, elevated, moderate, low_fear
+    fear_level: str = "unknown"
     timestamp: Optional[str] = None
     error: Optional[str] = None
 
     @property
     def is_buy_signal(self) -> bool:
-        """VIX > 30 is a potential buy signal (extreme fear)."""
-        return self.current is not None and self.current > 30
+        return self.current is not None and self.current > VIX_BUY_SIGNAL
 
     def to_dict(self) -> dict:
         return {
             "current": self.current,
             "previous_close": self.previous_close,
-            "week_ago": self.week_ago,
+            "day_5_ago": self.day_5_ago,
+            "day_20_ago": self.day_20_ago,
+            "day_60_ago": self.day_60_ago,
+            "day_90_ago": self.day_90_ago,
+            "day_180_ago": self.day_180_ago,
+            "year_ago": self.year_ago,
             "month_high": self.month_high,
             "month_low": self.month_low,
             "fear_level": self.fear_level,
@@ -43,27 +60,34 @@ class VIXData:
 class FedRateData:
     """Federal Reserve interest rate data."""
     current: Optional[float] = None
-    month_3_ago: Optional[float] = None
-    month_6_ago: Optional[float] = None
-    trend: str = "unknown"  # downward, upward, stable, mixed
+    day_5_ago: Optional[float] = None
+    day_20_ago: Optional[float] = None
+    day_60_ago: Optional[float] = None
+    day_90_ago: Optional[float] = None
+    day_180_ago: Optional[float] = None
+    year_ago: Optional[float] = None
+    trend: str = "unknown"
     trend_description: Optional[str] = None
-    change_6m: Optional[float] = None
+    change_180d: Optional[float] = None
     timestamp: Optional[str] = None
     error: Optional[str] = None
 
     @property
     def is_buy_signal(self) -> bool:
-        """Downward trend in rates is a buy signal."""
         return self.trend == "downward"
 
     def to_dict(self) -> dict:
         return {
             "current": self.current,
-            "month_3_ago": self.month_3_ago,
-            "month_6_ago": self.month_6_ago,
+            "day_5_ago": self.day_5_ago,
+            "day_20_ago": self.day_20_ago,
+            "day_60_ago": self.day_60_ago,
+            "day_90_ago": self.day_90_ago,
+            "day_180_ago": self.day_180_ago,
+            "year_ago": self.year_ago,
             "trend": self.trend,
             "trend_description": self.trend_description,
-            "change_6m": self.change_6m,
+            "change_180d": self.change_180d,
             "is_buy_signal": self.is_buy_signal,
             "timestamp": self.timestamp,
             "error": self.error
@@ -76,10 +100,13 @@ class MarginDebtData:
     current: Optional[float] = None
     current_billions: Optional[float] = None
     previous_quarter: Optional[float] = None
+    two_quarters_ago: Optional[float] = None
+    three_quarters_ago: Optional[float] = None
     year_ago: Optional[float] = None
+    two_years_ago: Optional[float] = None
     quarterly_change_pct: Optional[float] = None
     yearly_change_pct: Optional[float] = None
-    trend: str = "unknown"  # decreasing, slightly_decreasing, stable, increasing
+    trend: str = "unknown"
     trend_description: Optional[str] = None
     data_date: Optional[str] = None
     note: Optional[str] = None
@@ -88,12 +115,19 @@ class MarginDebtData:
 
     @property
     def is_buy_signal(self) -> bool:
-        """Decreasing margin debt is a buy signal (deleveraging)."""
         return self.trend in ["decreasing", "slightly_decreasing"]
 
     def to_dict(self) -> dict:
+        def to_b(v):
+            return round(v / 1000, 2) if v else None
+
         return {
             "current_billions": self.current_billions,
+            "previous_quarter_billions": to_b(self.previous_quarter),
+            "two_quarters_ago_billions": to_b(self.two_quarters_ago),
+            "three_quarters_ago_billions": to_b(self.three_quarters_ago),
+            "year_ago_billions": to_b(self.year_ago),
+            "two_years_ago_billions": to_b(self.two_years_ago),
             "quarterly_change_pct": self.quarterly_change_pct,
             "yearly_change_pct": self.yearly_change_pct,
             "trend": self.trend,
@@ -112,10 +146,13 @@ class SectorPerformance:
     name: str
     current_price: float
     day_return: float
-    week_return: float
-    month_return: float
-    three_month_return: float
-    volume_trend_pct: float  # Positive = increasing attention
+    day_5_return: float
+    day_20_return: float
+    day_60_return: float
+    day_90_return: float
+    day_180_return: float
+    year_return: float
+    volume_trend_pct: float
 
     def to_dict(self) -> dict:
         return {
@@ -123,9 +160,12 @@ class SectorPerformance:
             "name": self.name,
             "current_price": self.current_price,
             "day_return": self.day_return,
-            "week_return": self.week_return,
-            "month_return": self.month_return,
-            "three_month_return": self.three_month_return,
+            "day_5_return": self.day_5_return,
+            "day_20_return": self.day_20_return,
+            "day_60_return": self.day_60_return,
+            "day_90_return": self.day_90_return,
+            "day_180_return": self.day_180_return,
+            "year_return": self.year_return,
             "volume_trend_pct": self.volume_trend_pct
         }
 
@@ -142,12 +182,10 @@ class SectorData:
 
     @property
     def has_clear_leaders(self) -> bool:
-        """Check if there are clear leading sectors."""
         if not self.sectors or len(self.sectors) < 3:
             return False
-        sorted_sectors = sorted(self.sectors, key=lambda x: x.month_return, reverse=True)
-        # Clear leader if top sector outperforms 3rd by >5%
-        return (sorted_sectors[0].month_return - sorted_sectors[2].month_return) > 5
+        sorted_sectors = sorted(self.sectors, key=lambda x: x.day_20_return, reverse=True)
+        return (sorted_sectors[0].day_20_return - sorted_sectors[2].day_20_return) > SECTOR_LEADER_GAP
 
     def to_dict(self) -> dict:
         return {
@@ -158,6 +196,21 @@ class SectorData:
             "has_clear_leaders": self.has_clear_leaders,
             "timestamp": self.timestamp,
             "error": self.error
+        }
+
+
+@dataclass
+class QuarterlySnapshot:
+    """One quarter of revenue + net income for a company."""
+    quarter: str
+    revenue_b: Optional[float] = None
+    net_income_b: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "quarter": self.quarter,
+            "revenue_b": self.revenue_b,
+            "net_income_b": self.net_income_b
         }
 
 
@@ -177,6 +230,9 @@ class CompanyEarnings:
     analyst_rating: Optional[str] = None
     target_price: Optional[float] = None
     current_price: Optional[float] = None
+    prev_close: Optional[float] = None
+    open_price: Optional[float] = None
+    quarterly_data: List["QuarterlySnapshot"] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -192,7 +248,10 @@ class CompanyEarnings:
             "profit_margin": f"{self.profit_margin*100:.1f}%" if self.profit_margin else None,
             "analyst_rating": self.analyst_rating,
             "target_price": self.target_price,
-            "current_price": self.current_price
+            "prev_close": self.prev_close,
+            "open_price": self.open_price,
+            "current_price": self.current_price,
+            "quarterly_data": [q.to_dict() for q in self.quarterly_data]
         }
 
 
@@ -207,8 +266,7 @@ class EarningsData:
 
     @property
     def has_strong_earnings(self) -> bool:
-        """Check if leading sectors show strong earnings growth."""
-        return len(self.healthy_sectors) >= 2
+        return len(self.healthy_sectors) >= EARNINGS_HEALTHY_SECTORS_MIN
 
     def to_dict(self) -> dict:
         return {
@@ -234,7 +292,6 @@ class MarketPulseReport:
 
     @property
     def buy_signals_count(self) -> int:
-        """Count how many of the 5 metrics show buy signals."""
         signals = 0
         if self.vix.is_buy_signal:
             signals += 1
@@ -250,13 +307,12 @@ class MarketPulseReport:
 
     @property
     def signal_strength(self) -> str:
-        """Overall signal strength based on buy signals count."""
         count = self.buy_signals_count
-        if count >= 4:
+        if count >= SIGNAL_STRONG_BUY_MIN:
             return "STRONG_BUY"
-        elif count >= 3:
+        elif count >= SIGNAL_MODERATE_BUY_MIN:
             return "MODERATE_BUY"
-        elif count >= 2:
+        elif count >= SIGNAL_WEAK_BUY_MIN:
             return "WEAK_BUY"
         else:
             return "NEUTRAL"

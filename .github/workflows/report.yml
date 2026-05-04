@@ -1,0 +1,31 @@
+name: Market Pulse Report
+
+on:
+  schedule:
+    # 9 AM ET (~14:00 UTC) on the 1st and 15th of every month
+    - cron: '0 14 1,15 * *'
+  workflow_dispatch: # allows manual trigger from GitHub Actions tab
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Run Market Pulse
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+        run: python main.py --email

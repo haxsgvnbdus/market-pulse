@@ -1,19 +1,6 @@
 """
 Sector Performance Fetcher
 Source: Yahoo Finance (Sector ETFs)
-
-Tracks major sector ETFs to identify leading sectors:
-- XLK: Technology
-- XLF: Financials
-- XLE: Energy
-- XLV: Healthcare
-- XLI: Industrials
-- XLC: Communication Services
-- XLY: Consumer Discretionary
-- XLP: Consumer Staples
-- XLB: Materials
-- XLRE: Real Estate
-- XLU: Utilities
 """
 
 import yfinance as yf
@@ -37,41 +24,34 @@ SECTOR_ETFS = {
 }
 
 
+def _pct_return(current: float, past: float) -> float:
+    return round(((current - past) / past) * 100, 2) if past else 0.0
+
+
+def _price_n_ago(hist, n: int) -> float:
+    """Return closing price n trading days ago."""
+    idx = -(n + 1)
+    if abs(idx) <= len(hist):
+        return float(hist['Close'].iloc[idx])
+    return float(hist['Close'].iloc[0])
+
+
 def fetch_sector_performance() -> SectorData:
-    """
-    Fetch performance data for all major sector ETFs.
-    Returns sectors ranked by various timeframes.
-    """
     try:
         sectors: List[SectorPerformance] = []
 
         for ticker, name in SECTOR_ETFS.items():
             try:
                 etf = yf.Ticker(ticker)
-                hist = etf.history(period="3mo")
+                hist = etf.history(period="2y")
 
                 if hist.empty:
                     continue
 
-                current = hist['Close'].iloc[-1]
-                prev_close = hist['Close'].iloc[-2] if len(hist) > 1 else current
+                current = float(hist['Close'].iloc[-1])
+                prev_close = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current
 
-                # Calculate returns
-                day_return = ((current - prev_close) / prev_close) * 100
-
-                # Week return (5 trading days)
-                week_price = hist['Close'].iloc[-6] if len(hist) > 5 else hist['Close'].iloc[0]
-                week_return = ((current - week_price) / week_price) * 100
-
-                # Month return (~21 trading days)
-                month_price = hist['Close'].iloc[-22] if len(hist) > 21 else hist['Close'].iloc[0]
-                month_return = ((current - month_price) / month_price) * 100
-
-                # 3-month return
-                three_month_price = hist['Close'].iloc[0]
-                three_month_return = ((current - three_month_price) / three_month_price) * 100
-
-                # Volume trend (average last 5 days vs prior 20 days)
+                # Volume trend: avg last 5 days vs prior 20 days
                 recent_vol = hist['Volume'].iloc[-5:].mean()
                 prior_vol = hist['Volume'].iloc[-25:-5].mean() if len(hist) > 25 else hist['Volume'].mean()
                 volume_trend = ((recent_vol - prior_vol) / prior_vol) * 100 if prior_vol > 0 else 0
@@ -80,15 +60,17 @@ def fetch_sector_performance() -> SectorData:
                     ticker=ticker,
                     name=name,
                     current_price=round(current, 2),
-                    day_return=round(day_return, 2),
-                    week_return=round(week_return, 2),
-                    month_return=round(month_return, 2),
-                    three_month_return=round(three_month_return, 2),
+                    day_return=_pct_return(current, prev_close),
+                    day_5_return=_pct_return(current, _price_n_ago(hist, 5)),
+                    day_20_return=_pct_return(current, _price_n_ago(hist, 20)),
+                    day_60_return=_pct_return(current, _price_n_ago(hist, 60)),
+                    day_90_return=_pct_return(current, _price_n_ago(hist, 90)),
+                    day_180_return=_pct_return(current, _price_n_ago(hist, 180)),
+                    year_return=_pct_return(current, _price_n_ago(hist, 252)),
                     volume_trend_pct=round(volume_trend, 2)
                 ))
 
-            except Exception as e:
-                # Skip individual sector on error
+            except Exception:
                 continue
 
         if not sectors:
@@ -99,16 +81,15 @@ def fetch_sector_performance() -> SectorData:
                 error="Failed to fetch any sector data"
             )
 
-        # Sort by month return to find leaders/laggers
-        sorted_by_month = sorted(sectors, key=lambda x: x.month_return, reverse=True)
+        sorted_by_month = sorted(sectors, key=lambda x: x.day_20_return, reverse=True)
 
-        # Top 3 leading sectors
         leading = sorted_by_month[:3]
         lagging = sorted_by_month[-3:]
 
-        # Identify sectors with high volume (attention indicator)
-        high_attention = [s for s in sectors if s.volume_trend_pct > 20]
-        high_attention = sorted(high_attention, key=lambda x: x.volume_trend_pct, reverse=True)
+        high_attention = sorted(
+            [s for s in sectors if s.volume_trend_pct > 20],
+            key=lambda x: x.volume_trend_pct, reverse=True
+        )
 
         return SectorData(
             sectors=sectors,

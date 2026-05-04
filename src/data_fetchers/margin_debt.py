@@ -15,6 +15,7 @@ import os
 import requests
 from datetime import datetime, timedelta
 from ..models.metrics import MarginDebtData
+from ..thresholds import MARGIN_DECREASING_QTR, MARGIN_INCREASING_QTR
 
 
 FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
@@ -77,20 +78,22 @@ def fetch_margin_debt() -> MarginDebtData:
             return MarginDebtData(current=None, trend="unknown", error="Insufficient data points")
 
         current = values[0]["value"]
-        previous_quarter = values[1]["value"] if len(values) > 1 else current
-        year_ago = values[4]["value"] if len(values) > 4 else values[-1]["value"]
+        previous_quarter = values[1]["value"] if len(values) > 1 else None
+        two_quarters_ago = values[2]["value"] if len(values) > 2 else None
+        three_quarters_ago = values[3]["value"] if len(values) > 3 else None
+        year_ago = values[4]["value"] if len(values) > 4 else None
+        two_years_ago = values[8]["value"] if len(values) > 8 else None
 
-        # Determine trend (looking for decrease = deleveraging)
-        quarterly_change = ((current - previous_quarter) / previous_quarter) * 100
-        yearly_change = ((current - year_ago) / year_ago) * 100
+        quarterly_change = ((current - previous_quarter) / previous_quarter) * 100 if previous_quarter else 0
+        yearly_change = ((current - year_ago) / year_ago) * 100 if year_ago else 0
 
-        if quarterly_change < -5 and yearly_change < 0:
+        if quarterly_change < MARGIN_DECREASING_QTR and yearly_change < 0:
             trend = "decreasing"
             trend_description = "Significant deleveraging occurring"
         elif quarterly_change < 0:
             trend = "slightly_decreasing"
             trend_description = "Mild deleveraging"
-        elif quarterly_change > 5:
+        elif quarterly_change > MARGIN_INCREASING_QTR:
             trend = "increasing"
             trend_description = "Leverage increasing (risk-on behavior)"
         else:
@@ -104,7 +107,10 @@ def fetch_margin_debt() -> MarginDebtData:
             current=current,
             current_billions=current_billions,
             previous_quarter=previous_quarter,
+            two_quarters_ago=two_quarters_ago,
+            three_quarters_ago=three_quarters_ago,
             year_ago=year_ago,
+            two_years_ago=two_years_ago,
             quarterly_change_pct=round(quarterly_change, 2),
             yearly_change_pct=round(yearly_change, 2),
             trend=trend,

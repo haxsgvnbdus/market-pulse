@@ -27,7 +27,7 @@ def analyze_with_anthropic(report: MarketPulseReport) -> Optional[str]:
         prompt = _build_analysis_prompt(report)
 
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -175,6 +175,10 @@ Provide a concise analysis (200-300 words):
 - Give an overall market read
 - Suggest actionable next steps
 - Note any data gaps or caveats
+
+IMPORTANT: Always cite the actual numbers from the data — both positive AND negative (e.g. "VIX at 18.81", \
+"Materials earnings growth of 48.08%", "Energy earnings growth of -25.86%", "margin debt up 7.7% QoQ"). \
+Do not use vague language like "stronger/weaker than expected" — use the exact figures every time.
 
 Be direct and practical. Focus on what matters for timing entry points."""
 
